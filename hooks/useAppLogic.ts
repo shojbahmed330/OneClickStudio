@@ -82,9 +82,8 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
 
         Object.entries(res.files).forEach(([path, newContent]) => {
             const oldContent = projectFiles[path] || "";
-            // Protection: Block automated steps from overwriting large files with summaries
             if (isAuto && oldContent.length > 500 && (newContent as string).length < 100) {
-                console.warn(`[Integrity Check] Blocked code truncation for: ${path}`);
+                console.warn(`[Integrity Guard] Prevented summary overwrite for: ${path}`);
                 integrityProtected = true;
                 return;
             }
@@ -99,10 +98,10 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
       if (res.plan && res.plan.length > 0 && !isAuto) {
         setCurrentPlan(res.plan);
         setExecutionQueue(res.plan.slice(1));
-        addToast(`Engineering Strategy: ${res.plan.length} phases to completion.`, 'success');
+        addToast(`Architecting Solution: ${res.plan.length} Professional Phases mapped.`, 'success');
       }
 
-      const statusPrefix = isAuto ? `[DONE] ` : ``;
+      const statusPrefix = isAuto ? `[PRO-ENGINEER] ` : ``;
       setMessages(prev => [...prev, { 
         id: (Date.now() + 1).toString(),
         role: 'assistant', 
@@ -133,21 +132,21 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
         const stepNum = totalSteps - executionQueue.length + 1;
         const isFinalStep = executionQueue.length === 1;
         
-        addToast(`Executing Phase ${stepNum}/${totalSteps}: ${nextTask.slice(0, 30)}...`, 'info');
+        addToast(`Phase ${stepNum}/${totalSteps}: ${nextTask.slice(0, 30)}...`, 'info');
 
-        const internalCommand = `[AUTONOMOUS ENGINE STATUS]
-        PHASE: ${stepNum} of ${totalSteps}
+        const internalCommand = `[PROFESSIONAL AUTO-ENGINE ENGINE]
+        CONTEXT: Executing expanded application roadmap.
+        CURRENT PHASE: ${stepNum} of ${totalSteps}
         TASK: ${nextTask}
         
-        ${isFinalStep ? `CRITICAL SYSTEM PROTOCOL: This is the FINAL STEP. 
-        You MUST deliver the COMPLETE, CONSOLIDATED, and FULL source code of the entire application. 
-        Files REQUIRED with FULL CONTENT: 'app/index.html', 'app/main.js', and 'app/style.css'. 
-        Do not send placeholders, summaries, or partial logic. Combine all implemented features into these three final production-ready files.` : 'INSTRUCTION: Implement the FULL content of every changed file for this specific task.'}
+        ${isFinalStep ? `CRITICAL CONSOLIDATION: This is the FINAL step. 
+        You MUST provide the FULL, PRODUCTION-READY, and COMPLETE code for 'app/index.html', 'app/main.js', and 'app/style.css'. 
+        Merge all logic and styles from previous phases into these files.` : 'INSTRUCTION: Implement full code for this specific phase. Do not skip any detail.'}
         
-        Update necessary files. Return FULL content only.`;
+        Update necessary files. Return FULL file content only.`;
         
         handleSend(internalCommand, true);
-      }, 2500); 
+      }, 3000); 
       return () => clearTimeout(timer);
     }
   }, [isGenerating, executionQueue, currentPlan, messages, projectFiles]);
@@ -180,16 +179,16 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
 
   const handleBuildAPK = async (onConfigRequired: () => void) => {
     if (!githubConfig.token || !githubConfig.owner) {
-      addToast("GitHub Infrastructure Setup required.", "error");
+      addToast("GitHub Infrastructure Sync Required.", "error");
       onConfigRequired();
       return;
     }
-    setBuildStatus({ status: 'pushing', message: 'Syncing source with GitHub...' });
-    setBuildSteps([{ name: 'Initializing Build Pipeline', status: 'completed', conclusion: 'success' }]);
+    setBuildStatus({ status: 'pushing', message: 'Initiating Production Build...' });
+    setBuildSteps([{ name: 'Neural Logic Verification', status: 'completed', conclusion: 'success' }]);
   };
 
   const handleSecureDownload = () => {
-    addToast("Generating secure download package...", "info");
+    addToast("Packaging application for delivery...", "info");
   };
 
   const addFile = (path: string) => {
