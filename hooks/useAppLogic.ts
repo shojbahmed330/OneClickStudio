@@ -78,21 +78,20 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
       
       if (res.files) {
         const updatedFiles = { ...projectFiles };
-        let integrityBreached = false;
+        let integrityProtected = false;
 
         Object.entries(res.files).forEach(([path, newContent]) => {
             const oldContent = projectFiles[path] || "";
-            // Protection logic: If AI tries to replace a long file with a tiny placeholder during automation
+            // Protection: Block automated steps from overwriting large files with summaries
             if (isAuto && oldContent.length > 500 && (newContent as string).length < 100) {
-                console.warn(`Integrity Guard: Blocked potential code clearing for ${path}`);
-                integrityBreached = true;
+                console.warn(`[Integrity Check] Blocked code truncation for: ${path}`);
+                integrityProtected = true;
                 return;
             }
             updatedFiles[path] = newContent as string;
         });
 
-        // Only commit changes if no suspicious truncation was detected in auto-mode
-        if (!integrityBreached || !isAuto) {
+        if (!integrityProtected || !isAuto) {
             setProjectFiles(updatedFiles);
         }
       }
@@ -100,7 +99,7 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
       if (res.plan && res.plan.length > 0 && !isAuto) {
         setCurrentPlan(res.plan);
         setExecutionQueue(res.plan.slice(1));
-        addToast(`Engineering Strategy Locked: ${res.plan.length} steps.`, 'success');
+        addToast(`Engineering Strategy: ${res.plan.length} phases to completion.`, 'success');
       }
 
       const statusPrefix = isAuto ? `[DONE] ` : ``;
@@ -134,21 +133,21 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
         const stepNum = totalSteps - executionQueue.length + 1;
         const isFinalStep = executionQueue.length === 1;
         
-        addToast(`Phase ${stepNum}/${totalSteps}: ${nextTask.slice(0, 30)}...`, 'info');
+        addToast(`Executing Phase ${stepNum}/${totalSteps}: ${nextTask.slice(0, 30)}...`, 'info');
 
         const internalCommand = `[AUTONOMOUS ENGINE STATUS]
         PHASE: ${stepNum} of ${totalSteps}
         TASK: ${nextTask}
         
-        ${isFinalStep ? `CRITICAL SECURITY INSTRUCTION: This is the FINAL step.
-        You MUST deliver the COMPLETE, FULL source code for the entire app.
-        REQUIRED FILES (with FULL content): 'app/index.html', 'app/main.js', and 'app/style.css'.
-        Do NOT send placeholders or summaries. Consolidate everything into these final production files.` : 'INSTRUCTION: Implement full code for this task.'}
+        ${isFinalStep ? `CRITICAL SYSTEM PROTOCOL: This is the FINAL STEP. 
+        You MUST deliver the COMPLETE, CONSOLIDATED, and FULL source code of the entire application. 
+        Files REQUIRED with FULL CONTENT: 'app/index.html', 'app/main.js', and 'app/style.css'. 
+        Do not send placeholders, summaries, or partial logic. Combine all implemented features into these three final production-ready files.` : 'INSTRUCTION: Implement the FULL content of every changed file for this specific task.'}
         
-        Update necessary files. Return FULL content of every file.`;
+        Update necessary files. Return FULL content only.`;
         
         handleSend(internalCommand, true);
-      }, 2000); 
+      }, 2500); 
       return () => clearTimeout(timer);
     }
   }, [isGenerating, executionQueue, currentPlan, messages, projectFiles]);
@@ -181,16 +180,16 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
 
   const handleBuildAPK = async (onConfigRequired: () => void) => {
     if (!githubConfig.token || !githubConfig.owner) {
-      addToast("GitHub Configuration Required.", "error");
+      addToast("GitHub Infrastructure Setup required.", "error");
       onConfigRequired();
       return;
     }
-    setBuildStatus({ status: 'pushing', message: 'Uplinking to GitHub...' });
-    setBuildSteps([{ name: 'Security Check', status: 'completed', conclusion: 'success' }]);
+    setBuildStatus({ status: 'pushing', message: 'Syncing source with GitHub...' });
+    setBuildSteps([{ name: 'Initializing Build Pipeline', status: 'completed', conclusion: 'success' }]);
   };
 
   const handleSecureDownload = () => {
-    addToast("Preparing Download Bundle...", "info");
+    addToast("Generating secure download package...", "info");
   };
 
   const addFile = (path: string) => {

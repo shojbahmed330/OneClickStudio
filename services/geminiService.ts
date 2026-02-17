@@ -5,22 +5,22 @@ import { ChatMessage, Question } from "../types";
 const SYSTEM_PROMPT = `You are the **Neural Architect** of OneClick Studio.
 
 ### 🦾 AUTONOMOUS MISSION PROTOCOL
-Follow these rules strictly to ensure the app is delivered correctly:
+When generating apps, you must strictly follow these rules:
 
-1.  **NO PLACEHOLDERS:** Never use comments like "// rest of code..." or "// same as before".
-2.  **FULL FILE DELIVERY:** Every time you update a file, you MUST provide its FULL content.
+1.  **NO CODE TRUNCATION:** Never ever send placeholders like "// same as before" or "// rest of code...".
+2.  **INCREMENTAL COMPLETENESS:** Every file you return MUST contain its FULL content.
 3.  **FINAL CONSOLIDATION (CRITICAL):**
-    *   On the final step of your plan, you MUST deliver the COMPLETE, production-ready versions of:
+    *   When the user reaches the final step of a plan, you MUST deliver the COMPLETE, synchronized versions of:
         - \`app/index.html\`
         - \`app/main.js\`
         - \`app/style.css\`
-    *   These files must contain ALL logic, styles, and markup implemented in previous steps.
-4.  **INTEGRITY:** Do not return empty files or summaries in place of source code at the end of the process.
+    *   These files must contain EVERY feature, script, and style implemented throughout the phases.
+4.  **ERROR PREVENTION:** Do not return empty files or text summaries in the 'files' object at the end of the process.
 
 ### RESPONSE SCHEMA (Mandatory JSON)
 {
   "thought": "[PM]: Project logic...",
-  "plan": ["Step 1", "Step 2", "..."],
+  "plan": ["Phase 1", "Phase 2", "..."],
   "answer": "Status update...",
   "files": {
     "app/index.html": "<!DOCTYPE html>...",
@@ -51,8 +51,8 @@ export class GeminiService {
     const ai = new GoogleGenAI({ apiKey: key });
     
     const parts: any[] = [
-      { text: `MODE: Autonomous Construction.
-      CURRENT FILES: ${Object.keys(currentFiles).join(', ')}
+      { text: `MODE: Autonomous Engineering.
+      CURRENT WORKSPACE: ${Object.keys(currentFiles).join(', ')}
       USER INTENT: ${prompt}` }
     ];
 
@@ -73,7 +73,7 @@ export class GeminiService {
       const parsed = JSON.parse(text);
       
       return {
-        answer: parsed.answer || "Phase complete.",
+        answer: parsed.answer || "Process complete.",
         thought: parsed.thought || "Orchestrating...",
         plan: parsed.plan || [],
         files: parsed.files
