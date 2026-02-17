@@ -5,70 +5,49 @@ export const buildFinalHtml = (projectFiles: Record<string, string>, entryPath: 
       url: "${projectConfig.supabase_url}",
       key: "${projectConfig.supabase_key}"
     };
-    console.log('OneClick Database Bridge: Active');
-  ` : `window.StudioDatabase = null; console.log('OneClick Database Bridge: Offline');`;
+    console.log('Database Bridge: Active');
+  ` : `window.StudioDatabase = null;`;
 
   const polyfill = `
     <script>
-      // Database Bridge Injection
       ${supabaseConfig}
-
-      // Advanced Error Reporting System for Self-Healing
       window.onerror = function(message, source, lineno, colno, error) {
         window.parent.postMessage({
           type: 'RUNTIME_ERROR',
-          error: { 
-            message: message, 
-            line: lineno, 
-            column: colno,
-            stack: error?.stack || '',
-            source: source ? source.split('/').pop() : 'index.html'
-          }
+          error: { message, line: lineno, source: source ? source.split('/').pop() : 'index.html' }
         }, '*');
         return false;
       };
-
-      // Native Bridge Simulation
-      window.NativeBridge = {
-        getUsageStats: () => Promise.resolve({ screenTime: '4h 20m', topApp: 'Social Media' }),
-        requestPermission: async (p) => {
-           console.log('Requesting Permission:', p);
-           return Promise.resolve(true);
-        },
-        showToast: (m) => { alert('App Message: ' + m); },
-        vibrate: (pattern = 200) => { if (window.navigator.vibrate) window.navigator.vibrate(pattern); }
-      };
+      // Force scroll reset on reload
+      if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
     </script>
   `;
 
-  let entryHtml = projectFiles[entryPath] || '<div id="app" style="color: #52525b; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3em; display: flex; align-items: center; justify-content: center; height: 100vh; background: #09090b;">System Initializing...</div>';
+  let entryHtml = projectFiles[entryPath] || projectFiles['app/index.html'] || projectFiles['index.html'] || 
+    '<div id="app" style="color: #52525b; font-size: 12px; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; justify-content: center; height: 100vh; background: #09090b;">System Initializing...</div>';
   
+  // Clean up relative assets/scripts for injection
   let processedHtml = entryHtml
     .replace(/<link[^>]+href=["'](?!\w+:\/\/)[^"']+["'][^>]*>/gi, '')
     .replace(/<script[^>]+src=["'](?!\w+:\/\/)[^"']+["'][^>]*><\/script>/gi, '');
 
   const cssContent = Object.entries(projectFiles)
     .filter(([path]) => path.endsWith('.css'))
-    .map(([path, content]) => `/* ${path} */\n${content}`)
+    .map(([path, content]) => `/* --- FILE: ${path} --- */\n${content}`)
     .join('\n');
     
   const jsContent = Object.entries(projectFiles)
     .filter(([path]) => path.endsWith('.js'))
-    .map(([path, content]) => `// --- FILE: ${path} ---\ntry {\n${content}\n} catch(e) { console.error("Error in ${path}:", e); throw e; }\n`)
+    .map(([path, content]) => `// --- FILE: ${path} ---\ntry {\n${content}\n} catch(e) { console.error("Error in ${path}:", e); }\n`)
     .join('\n');
-  
-  const tailwindCdn = '<script src="https://cdn.tailwindcss.com"></script>';
   
   const headInjection = `
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    ${tailwindCdn}
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-      :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
-      html, body { height: 100dvh; width: 100vw; margin: 0; padding: 0; overflow-x: hidden; background-color: #09090b !important; color: #f4f4f5; }
-      body { font-family: sans-serif; display: flex; flex-direction: column; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
-      #app-root, #root, #app { flex: 1; display: flex; flex-direction: column; height: 100%; overflow-y: auto; overflow-x: hidden; position: relative; }
+      html, body { height: 100%; margin: 0; padding: 0; background-color: #09090b !important; color: #f4f4f5; font-family: sans-serif; }
       ::-webkit-scrollbar { display: none; }
       ${cssContent}
     </style>
@@ -78,7 +57,7 @@ export const buildFinalHtml = (projectFiles: Record<string, string>, entryPath: 
   const finalScript = `<script>\n${jsContent}\n</script>`;
 
   if (!processedHtml.toLowerCase().includes('<html')) {
-    return `<!DOCTYPE html><html lang="en"><head>${headInjection}</head><body><div id="app-root">${processedHtml}</div>${finalScript}</body></html>`;
+    return `<!DOCTYPE html><html lang="en"><head>${headInjection}</head><body>${processedHtml}${finalScript}</body></html>`;
   }
 
   if (processedHtml.includes('</head>')) {

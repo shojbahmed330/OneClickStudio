@@ -1,6 +1,6 @@
 
 import React, { useRef } from 'react';
-import { Image as ImageIcon, Send, X, Layers } from 'lucide-react';
+import { Image as ImageIcon, Send, X, Layers, Loader2 } from 'lucide-react';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface ChatInputProps {
@@ -26,15 +26,21 @@ const ChatInput: React.FC<ChatInputProps> = ({
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const isQueued = executionQueue && executionQueue.length > 0;
+
   return (
     <div className="p-4 md:p-8 absolute bottom-0 left-0 right-0 bg-gradient-to-t from-[#09090b] via-[#09090b]/95 to-transparent pt-12 z-[100]">
       
-      {/* Visual Execution Queue Badge - Repositioned to bottom-full to sit above input */}
-      {executionQueue && executionQueue.length > 0 && (
-        <div className="absolute bottom-full mb-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-5 py-2 bg-pink-600/10 border border-pink-500/40 rounded-full backdrop-blur-xl animate-in slide-in-from-bottom-2 shadow-xl shadow-pink-600/10 z-[110]">
-           <Layers size={14} className="text-pink-500 animate-pulse"/>
-           <span className="text-[10px] font-black uppercase text-pink-400 tracking-widest">
-             {executionQueue.length} Tasks Auto-Queued
+      {/* Autonomous Status Badge */}
+      {isQueued && (
+        <div className="absolute bottom-full mb-6 left-1/2 -translate-x-1/2 flex items-center gap-3 px-6 py-2.5 bg-pink-600/10 border border-pink-500/40 rounded-full backdrop-blur-3xl animate-in slide-in-from-bottom-2 shadow-2xl ring-1 ring-pink-500/20 z-[110]">
+           {isGenerating ? (
+             <Loader2 size={14} className="text-pink-500 animate-spin"/>
+           ) : (
+             <Layers size={14} className="text-pink-500 animate-pulse"/>
+           )}
+           <span className="text-[10px] font-black uppercase text-pink-400 tracking-widest whitespace-nowrap">
+             Autonomous Mode: {executionQueue.length} Phases Remaining
            </span>
         </div>
       )}
@@ -49,20 +55,30 @@ const ChatInput: React.FC<ChatInputProps> = ({
           </div>
         </div>
       )}
-      <div className="relative bg-black/40 backdrop-blur-3xl border border-white/10 rounded-[2rem] p-2 md:p-3 flex items-center gap-2 md:gap-3 mb-20 md:mb-0 shadow-2xl focus-within:border-pink-500/40 transition-all">
+
+      <div className={`relative bg-black/40 backdrop-blur-3xl border rounded-[2rem] p-2 md:p-3 flex items-center gap-2 md:gap-3 mb-20 md:mb-0 shadow-2xl transition-all duration-500 ${isGenerating || isQueued ? 'border-pink-500/40 ring-1 ring-pink-500/10' : 'border-white/10 focus-within:border-pink-500/40'}`}>
          <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={onFileChange} />
-         <button onClick={() => fileInputRef.current?.click()} className="w-10 h-10 md:w-12 md:h-12 text-zinc-500 hover:text-pink-500 hover:bg-white/5 rounded-2xl transition-all flex items-center justify-center">
+         <button 
+           disabled={isGenerating || isQueued}
+           onClick={() => fileInputRef.current?.click()} 
+           className="w-10 h-10 md:w-12 md:h-12 text-zinc-500 hover:text-pink-500 hover:bg-white/5 rounded-2xl transition-all flex items-center justify-center disabled:opacity-20"
+         >
            <ImageIcon size={20}/>
          </button>
          <textarea 
+           disabled={isGenerating || isQueued}
            value={input} 
            onChange={e => setInput(e.target.value)} 
            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && (e.preventDefault(), handleSend())} 
-           placeholder={t('chat.placeholder')} 
-           className="flex-1 bg-transparent p-2 text-[13px] h-12 outline-none text-white resize-none placeholder:text-zinc-700 font-bold" 
+           placeholder={isQueued ? "Autonomous engineering in progress..." : t('chat.placeholder')} 
+           className="flex-1 bg-transparent p-2 text-[13px] h-12 outline-none text-white resize-none placeholder:text-zinc-700 font-bold disabled:opacity-50" 
          />
-         <button onClick={handleSend} disabled={isGenerating || (!input.trim() && !selectedImage)} className="w-10 h-10 md:w-12 md:h-12 bg-pink-600 text-white rounded-2xl flex items-center justify-center active:scale-95 disabled:opacity-30 transition-all shadow-lg shadow-pink-600/20">
-           <Send size={16}/>
+         <button 
+           onClick={handleSend} 
+           disabled={isGenerating || isQueued || (!input.trim() && !selectedImage)} 
+           className="w-10 h-10 md:w-12 md:h-12 bg-pink-600 text-white rounded-2xl flex items-center justify-center active:scale-95 disabled:bg-zinc-800 disabled:text-zinc-600 transition-all shadow-lg shadow-pink-600/20"
+         >
+           {isGenerating ? <Loader2 size={16} className="animate-spin"/> : <Send size={16}/>}
          </button>
       </div>
     </div>
