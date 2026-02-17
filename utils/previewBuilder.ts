@@ -41,7 +41,7 @@ export const buildFinalHtml = (projectFiles: Record<string, string>, entryPath: 
     </script>
   `;
 
-  let entryHtml = projectFiles[entryPath] || '<div id="app">System Initializing...</div>';
+  let entryHtml = projectFiles[entryPath] || '<div id="app" style="color: #52525b; font-size: 10px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.3em; display: flex; align-items: center; justify-content: center; height: 100vh;">System Initializing...</div>';
   
   let processedHtml = entryHtml
     .replace(/<link[^>]+href=["'](?!\w+:\/\/)[^"']+["'][^>]*>/gi, '')
@@ -66,8 +66,8 @@ export const buildFinalHtml = (projectFiles: Record<string, string>, entryPath: 
     <style>
       * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
       :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
-      html, body { height: 100dvh; width: 100vw; margin: 0; padding: 0; overflow: hidden; background-color: #000; }
-      body { color: #f4f4f5; font-family: sans-serif; display: flex; flex-direction: column; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
+      html, body { height: 100dvh; width: 100vw; margin: 0; padding: 0; overflow: hidden; background-color: #09090b !important; color: #f4f4f5; }
+      body { font-family: sans-serif; display: flex; flex-direction: column; padding-top: var(--safe-top); padding-bottom: var(--safe-bottom); }
       #app-root, #root, #app { flex: 1; display: flex; flex-direction: column; height: 100%; overflow-y: auto; overflow-x: hidden; position: relative; }
       ::-webkit-scrollbar { display: none; }
       ${cssContent}
