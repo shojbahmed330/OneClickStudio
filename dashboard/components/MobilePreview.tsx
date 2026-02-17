@@ -84,7 +84,7 @@ const MobilePreview: React.FC<MobilePreviewProps> = ({
   };
 
   return (
-    <section className={`flex-1 flex flex-col items-center justify-center p-6 relative h-full pt-44 lg:pt-0 ${mobileTab === 'chat' ? 'hidden lg:flex' : 'flex'}`}>
+    <section className={`flex-1 flex flex-col items-center lg:items-start justify-center p-6 lg:pl-48 relative h-full pt-44 lg:pt-0 ${mobileTab === 'chat' ? 'hidden lg:flex' : 'flex'}`}>
       
       {/* Workspace Switcher */}
       <div className={`w-[290px] mb-6 hidden lg:block transition-opacity duration-300 z-40 ${isGenerating && isInitialLoad ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>

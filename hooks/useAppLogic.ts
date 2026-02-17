@@ -62,7 +62,6 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
     try {
       let text = extraData || input;
       
-      // Smart Batch Processing Logic
       const listPattern = /^(\s*[-*•]|\s*\d+\.)\s+.+/gm;
       const matches = text.match(listPattern);
       
