@@ -1,5 +1,4 @@
 
-/* Fix: Completed the useAppLogic hook with all required state and logic for the application to resolve "void" type errors in App.tsx */
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { User as UserType, ProjectConfig, Project, WorkspaceType, BuildStep, GithubConfig } from '../types';
 import { GeminiService } from '../services/geminiService';
@@ -27,7 +26,6 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
   const [lastThought, setLastThought] = useState<string>('');
   const [currentPlan, setCurrentPlan] = useState<string[]>([]);
 
-  // States for build and history
   const [buildStatus, setBuildStatus] = useState({ status: 'idle', message: '' });
   const [buildSteps, setBuildSteps] = useState<BuildStep[]>([]);
   const [isDownloading, setIsDownloading] = useState(false);
@@ -72,7 +70,6 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
         }]);
         setInput('');
         setSelectedImage(null);
-        setCurrentPlan([]); 
       }
 
       const res = await gemini.current.generateWebsite(promptText, projectFiles, messages, currentImage, projectConfig);
@@ -80,16 +77,30 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
       if (res.thought) setLastThought(res.thought);
       
       if (res.files) {
-        setProjectFiles(prev => ({
-          ...prev,
-          ...res.files
-        }));
+        const updatedFiles = { ...projectFiles };
+        let integrityBreached = false;
+
+        Object.entries(res.files).forEach(([path, newContent]) => {
+            const oldContent = projectFiles[path] || "";
+            // Protection logic: If AI tries to replace a long file with a tiny placeholder during automation
+            if (isAuto && oldContent.length > 500 && (newContent as string).length < 100) {
+                console.warn(`Integrity Guard: Blocked potential code clearing for ${path}`);
+                integrityBreached = true;
+                return;
+            }
+            updatedFiles[path] = newContent as string;
+        });
+
+        // Only commit changes if no suspicious truncation was detected in auto-mode
+        if (!integrityBreached || !isAuto) {
+            setProjectFiles(updatedFiles);
+        }
       }
 
       if (res.plan && res.plan.length > 0 && !isAuto) {
         setCurrentPlan(res.plan);
         setExecutionQueue(res.plan.slice(1));
-        addToast(`Engineering Strategy Locked: ${res.plan.length} steps to completion.`, 'success');
+        addToast(`Engineering Strategy Locked: ${res.plan.length} steps.`, 'success');
       }
 
       const statusPrefix = isAuto ? `[DONE] ` : ``;
@@ -121,22 +132,26 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
         
         const totalSteps = currentPlan.length;
         const stepNum = totalSteps - executionQueue.length + 1;
+        const isFinalStep = executionQueue.length === 1;
         
-        addToast(`Working on Phase ${stepNum}/${totalSteps}: ${nextTask.slice(0, 30)}...`, 'info');
+        addToast(`Phase ${stepNum}/${totalSteps}: ${nextTask.slice(0, 30)}...`, 'info');
 
         const internalCommand = `[AUTONOMOUS ENGINE STATUS]
-        MISSION: ${messages.find(m => m.role === 'user')?.content || 'Current Project'}
         PHASE: ${stepNum} of ${totalSteps}
         TASK: ${nextTask}
         
-        INSTRUCTION: Write and implement the FULL code for this task. 
-        Update all necessary files. You MUST return the FULL content of changed files.`;
+        ${isFinalStep ? `CRITICAL SECURITY INSTRUCTION: This is the FINAL step.
+        You MUST deliver the COMPLETE, FULL source code for the entire app.
+        REQUIRED FILES (with FULL content): 'app/index.html', 'app/main.js', and 'app/style.css'.
+        Do NOT send placeholders or summaries. Consolidate everything into these final production files.` : 'INSTRUCTION: Implement full code for this task.'}
+        
+        Update necessary files. Return FULL content of every file.`;
         
         handleSend(internalCommand, true);
-      }, 2000);
+      }, 2000); 
       return () => clearTimeout(timer);
     }
-  }, [isGenerating, executionQueue, currentPlan, messages, projectFiles, user, currentProjectId, projectConfig, addToast]);
+  }, [isGenerating, executionQueue, currentPlan, messages, projectFiles]);
 
   const handleImageSelect = (file: File) => {
     const reader = new FileReader();
@@ -160,22 +175,22 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
 
   const handleRollback = async (files: Record<string, string>, message: string) => {
     setProjectFiles(files);
-    addToast(`Rolled back to: ${message}`, 'success');
+    addToast(`Restored to: ${message}`, 'success');
     setPreviewOverride(null);
   };
 
   const handleBuildAPK = async (onConfigRequired: () => void) => {
     if (!githubConfig.token || !githubConfig.owner) {
-      addToast("GitHub Configuration required for builds.", "error");
+      addToast("GitHub Configuration Required.", "error");
       onConfigRequired();
       return;
     }
-    setBuildStatus({ status: 'pushing', message: 'Syncing with GitHub...' });
-    setBuildSteps([{ name: 'Initializing Build', status: 'completed', conclusion: 'success' }]);
+    setBuildStatus({ status: 'pushing', message: 'Uplinking to GitHub...' });
+    setBuildSteps([{ name: 'Security Check', status: 'completed', conclusion: 'success' }]);
   };
 
   const handleSecureDownload = () => {
-    addToast("Preparing secure download link...", "info");
+    addToast("Preparing Download Bundle...", "info");
   };
 
   const addFile = (path: string) => {

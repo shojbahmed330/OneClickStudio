@@ -18,13 +18,17 @@ export const buildFinalHtml = (projectFiles: Record<string, string>, entryPath: 
         }, '*');
         return false;
       };
-      // Force scroll reset on reload
       if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
     </script>
   `;
 
-  let entryHtml = projectFiles[entryPath] || projectFiles['app/index.html'] || projectFiles['index.html'] || 
-    '<div id="app" style="color: #52525b; font-size: 12px; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; justify-content: center; height: 100vh; background: #09090b;">System Initializing...</div>';
+  // Robust Entry Point Search
+  let entryHtml = projectFiles[entryPath] || 
+                  projectFiles['app/index.html'] || 
+                  projectFiles['index.html'] || 
+                  projectFiles['app/main.html'] ||
+                  Object.values(projectFiles).find(c => c.includes('<body') || c.includes('<div')) ||
+                  '<div id="app" style="color: #52525b; font-size: 12px; font-weight: 900; text-transform: uppercase; display: flex; align-items: center; justify-content: center; height: 100vh; background: #09090b;">System Initializing...</div>';
   
   // Clean up relative assets/scripts for injection
   let processedHtml = entryHtml
@@ -32,12 +36,12 @@ export const buildFinalHtml = (projectFiles: Record<string, string>, entryPath: 
     .replace(/<script[^>]+src=["'](?!\w+:\/\/)[^"']+["'][^>]*><\/script>/gi, '');
 
   const cssContent = Object.entries(projectFiles)
-    .filter(([path]) => path.endsWith('.css'))
+    .filter(([path, content]) => path.endsWith('.css') && content.length > 0)
     .map(([path, content]) => `/* --- FILE: ${path} --- */\n${content}`)
     .join('\n');
     
   const jsContent = Object.entries(projectFiles)
-    .filter(([path]) => path.endsWith('.js'))
+    .filter(([path, content]) => path.endsWith('.js') && content.length > 0)
     .map(([path, content]) => `// --- FILE: ${path} ---\ntry {\n${content}\n} catch(e) { console.error("Error in ${path}:", e); }\n`)
     .join('\n');
   

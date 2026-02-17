@@ -2,39 +2,30 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { ChatMessage, Question } from "../types";
 
-const SYSTEM_PROMPT = `You are the **Neural Architect** of OneClick Studio, an elite autonomous software development agency.
+const SYSTEM_PROMPT = `You are the **Neural Architect** of OneClick Studio.
 
 ### 🦾 AUTONOMOUS MISSION PROTOCOL
-When a user requests an app, you must operate as a fully autonomous team (PM, UI/UX, Lead Developer, QA).
+Follow these rules strictly to ensure the app is delivered correctly:
 
-1.  **DYNAMIC STRATEGIC PLANNING:**
-    *   In the first response, generate a detailed **Execution Plan** (JSON array).
-    *   The number of steps must match the complexity of the request. DO NOT limit to 5 steps. If a complex social media app is requested, create 10-15 steps if needed.
-    *   Each step must be a specific, logical milestone (e.g., "Build Auth Logic", "Design Feed UI", "Connect Real-time Chat", "Implement Admin Dashboard").
-
-2.  **COMPLETE WORKABLE CODE (STRICT):**
-    *   Every file modification MUST provide the **FULL CONTENT**.
-    *   NO placeholders like "// rest of logic..." or "// code here".
-    *   NO partial diffs.
-    *   If you update any file, you return the *entire* file with the new features integrated.
-
-3.  **CENTRALIZED STATE MANAGEMENT:**
-    *   Use \`window.AppState\` in \`app/main.js\` to manage all data.
-    *   Ensure all components are rendered dynamically based on the state.
-
-4.  **FOLDER STRUCTURE:**
-    *   All app files MUST be inside the \`app/\` directory.
+1.  **NO PLACEHOLDERS:** Never use comments like "// rest of code..." or "// same as before".
+2.  **FULL FILE DELIVERY:** Every time you update a file, you MUST provide its FULL content.
+3.  **FINAL CONSOLIDATION (CRITICAL):**
+    *   On the final step of your plan, you MUST deliver the COMPLETE, production-ready versions of:
+        - \`app/index.html\`
+        - \`app/main.js\`
+        - \`app/style.css\`
+    *   These files must contain ALL logic, styles, and markup implemented in previous steps.
+4.  **INTEGRITY:** Do not return empty files or summaries in place of source code at the end of the process.
 
 ### RESPONSE SCHEMA (Mandatory JSON)
 {
-  "thought": "[PM]: Project scoping... [DEV]: Initializing core structure...",
-  "plan": ["Step 1: Description", "Step 2: Description", "..."],
-  "answer": "Current Status: [Step Name] in progress...",
+  "thought": "[PM]: Project logic...",
+  "plan": ["Step 1", "Step 2", "..."],
+  "answer": "Status update...",
   "files": {
     "app/index.html": "<!DOCTYPE html>...",
     "app/main.js": "...",
-    "app/styles.css": "...",
-    "app/data.js": "..."
+    "app/style.css": "..."
   }
 }
 `;
@@ -60,18 +51,16 @@ export class GeminiService {
     const ai = new GoogleGenAI({ apiKey: key });
     
     const parts: any[] = [
-      { text: `MODE: Autonomous Engineering.
-      CURRENT WORKSPACE FILES: ${Object.keys(currentFiles).join(', ')}
-      USER INTENT: ${prompt}
-      HISTORY: ${JSON.stringify(history.slice(-4).map(m => ({ role: m.role, content: m.content })))}` }
+      { text: `MODE: Autonomous Construction.
+      CURRENT FILES: ${Object.keys(currentFiles).join(', ')}
+      USER INTENT: ${prompt}` }
     ];
 
     if (image) parts.push({ inlineData: { data: image.data, mimeType: image.mimeType } });
 
     try {
-      /* Reverted to gemini-3-flash-preview as per user request for free tier compatibility */
       const response = await ai.models.generateContent({
-        model: 'gemini-3-flash-preview',
+        model: 'gemini-3-flash-preview', 
         contents: { parts },
         config: { 
             systemInstruction: SYSTEM_PROMPT, 
@@ -84,14 +73,14 @@ export class GeminiService {
       const parsed = JSON.parse(text);
       
       return {
-        answer: parsed.answer || "Processing phase...",
+        answer: parsed.answer || "Phase complete.",
         thought: parsed.thought || "Orchestrating...",
         plan: parsed.plan || [],
         files: parsed.files
       };
     } catch (error: any) {
       console.error("Gemini Error:", error);
-      throw new Error(`Neural Core Timeout or Error: ${error.message}`);
+      throw new Error(error.message || "Neural Core Interrupted.");
     }
   }
 }
