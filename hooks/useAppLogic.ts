@@ -29,26 +29,7 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [executionQueue, setExecutionQueue] = useState<string[]>([]);
   
-  const [projectFiles, setProjectFiles] = useState<Record<string, string>>({
-    'app/index.html': `
-      <div class="flex flex-col items-center justify-center min-h-screen bg-[#09090b] text-white p-8 overflow-hidden relative">
-        <div class="absolute inset-0 bg-[radial-gradient(circle_at_center,_rgba(236,72,153,0.1)_0%,_transparent_70%)]"></div>
-        <div class="relative z-10 flex flex-col items-center gap-12 animate-in zoom-in duration-1000">
-          <div class="w-24 h-24 bg-pink-600/10 rounded-[2.5rem] border border-pink-500/20 flex items-center justify-center shadow-[0_0_60px_rgba(236,72,153,0.2)] animate-bounce">
-             <svg class="w-12 h-12 text-pink-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-               <path d="M12 3l1.912 5.886h6.191l-5.008 3.638 1.912 5.886-5.007-3.638-5.007 3.638 1.912-5.886-5.008-3.638h6.191z"></path>
-             </svg>
-          </div>
-          <div class="text-center space-y-4">
-            <h1 class="text-4xl font-black tracking-tighter uppercase leading-tight">
-              OneClick <span class="text-pink-500">Studio</span>
-            </h1>
-            <p class="text-[9px] font-black uppercase tracking-[0.5em] text-zinc-600">Autonomous Node Active</p>
-          </div>
-        </div>
-      </div>
-    `
-  });
+  const [projectFiles, setProjectFiles] = useState<Record<string, string>>({});
   
   const [projectConfig, setProjectConfig] = useState<ProjectConfig>({ appName: 'OneClickApp', packageName: 'com.oneclick.studio' });
   const [selectedFile, setSelectedFile] = useState('app/index.html');

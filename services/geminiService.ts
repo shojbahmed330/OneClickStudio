@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { ChatMessage, Question } from "../types";
 
@@ -87,9 +88,8 @@ export class GeminiService {
     }
 
     const ai = new GoogleGenAI({ apiKey: key });
-    // Use the Pro model for complex reasoning (Planner/Designer/Dev simulation)
-    const modelName = 'gemini-3-pro-preview'; 
-
+    
+    // Config Preparation
     const parts: any[] = [
       { text: `Current File Structure: ${JSON.stringify(Object.keys(currentFiles))}` },
       { text: `Existing File Contents: ${JSON.stringify(currentFiles)}` },
@@ -104,40 +104,70 @@ export class GeminiService {
       });
     }
 
-    try {
+    const executeGeneration = async (modelName: string, thinkingBudget?: number) => {
+      const config: any = {
+        systemInstruction: SYSTEM_PROMPT,
+        responseMimeType: "application/json"
+      };
+      
+      // Only apply thinking config if budget is provided and not 0 (Pro model)
+      if (thinkingBudget) {
+        config.thinkingConfig = { thinkingBudget };
+      }
+
       const response = await ai.models.generateContent({
         model: modelName,
         contents: { parts },
-        config: {
-          systemInstruction: SYSTEM_PROMPT,
-          responseMimeType: "application/json",
-          // High thinking budget to allow for the "Agent Swarm" simulation
-          thinkingConfig: { thinkingBudget: 10240 } 
-        }
+        config
       });
-      
-      const text = response.text;
-      if (!text) throw new Error("Neural Core returned empty stream.");
+      return response.text;
+    };
 
-      try {
-        const parsed = JSON.parse(text);
-        return {
-          answer: parsed.answer || "Orchestration complete. Project ready.",
-          thought: parsed.thought || "Agents synchronized.",
-          summary: parsed.summary || "System Update",
-          plan: parsed.plan || [],
-          questions: parsed.questions || [],
-          files: parsed.files,
-          diffs: parsed.diffs
-        };
-      } catch (e) {
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
-        if (jsonMatch) return JSON.parse(jsonMatch[0]);
-        throw new Error("Neural response format invalid.");
-      }
+    try {
+      // 1. Prioritize Flash Model for speed and to avoid Quota limits (as per user request)
+      const text = await executeGeneration('gemini-3-flash-preview');
+      return this.parseResponse(text);
+
     } catch (error: any) {
-      console.error(`Elite Engine Error:`, error);
+      console.warn("⚠️ Flash Engine Warning. Attempting fallback if applicable...", error);
+      
+      // 2. Fallback to Pro if Flash fails (unlikely for quota, but for other errors)
+      if (!error.message?.includes('429')) {
+         try {
+            const fallbackText = await executeGeneration('gemini-3-pro-preview', 10240);
+            const result = this.parseResponse(fallbackText);
+            result.thought += " [NOTE: Switched to Pro Engine]";
+            return result;
+         } catch (fallbackError) {
+            console.error("Critical: Both Engines Failed.", fallbackError);
+         }
+      }
+      
+      if (error.message?.includes('429') || error.message?.includes('RESOURCE_EXHAUSTED')) {
+         throw new Error("System Overload: Neural engines are currently at capacity. Please try again in 1 minute.");
+      }
+      
       throw error;
+    }
+  }
+
+  private parseResponse(text: string | undefined): GenerationResult {
+    if (!text) throw new Error("Neural Core returned empty stream.");
+    try {
+      const parsed = JSON.parse(text);
+      return {
+        answer: parsed.answer || "Orchestration complete. Project ready.",
+        thought: parsed.thought || "Agents synchronized.",
+        summary: parsed.summary || "System Update",
+        plan: parsed.plan || [],
+        questions: parsed.questions || [],
+        files: parsed.files,
+        diffs: parsed.diffs
+      };
+    } catch (e) {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) return JSON.parse(jsonMatch[0]);
+      throw new Error("Neural response format invalid.");
     }
   }
 }
