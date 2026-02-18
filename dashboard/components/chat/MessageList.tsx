@@ -9,9 +9,10 @@ interface MessageListProps {
   messages: any[];
   isGenerating: boolean;
   handleSend: (extraData?: string) => void;
+  waitingForApproval?: boolean;
 }
 
-const MessageList: React.FC<MessageListProps> = ({ messages, isGenerating, handleSend }) => {
+const MessageList: React.FC<MessageListProps> = ({ messages, isGenerating, handleSend, waitingForApproval }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const { t } = useLanguage();
 
@@ -31,7 +32,14 @@ const MessageList: React.FC<MessageListProps> = ({ messages, isGenerating, handl
     >
       {messages.length > 0 ? (
         messages.map((m, idx) => (
-          <MessageItem key={m.id || idx} message={m} index={idx} handleSend={handleSend} />
+          <MessageItem 
+            key={m.id || idx} 
+            message={m} 
+            index={idx} 
+            handleSend={handleSend} 
+            isLatest={idx === messages.length - 1}
+            waitingForApproval={waitingForApproval}
+          />
         ))
       ) : (
         <ChatEmptyState />

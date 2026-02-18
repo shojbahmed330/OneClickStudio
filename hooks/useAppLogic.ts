@@ -1,6 +1,6 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { User as UserType, ProjectConfig, Project, WorkspaceType, BuildStep, GithubConfig } from '../types';
+import { User as UserType, ProjectConfig, Project, WorkspaceType, BuildStep, GithubConfig, ChatMessage } from '../types';
 import { GeminiService } from '../services/geminiService';
 import { DatabaseService } from '../services/dbService';
 
@@ -14,7 +14,7 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(localStorage.getItem('active_project_id'));
   const [workspace, setWorkspace] = useState<WorkspaceType>('app');
   const [mobileTab, setMobileTab] = useState<'chat' | 'preview'>('chat');
-  const [messages, setMessages] = useState<any[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [executionQueue, setExecutionQueue] = useState<string[]>([]);
@@ -25,6 +25,7 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [lastThought, setLastThought] = useState<string>('');
   const [currentPlan, setCurrentPlan] = useState<string[]>([]);
+  const [waitingForApproval, setWaitingForApproval] = useState(false);
 
   const [buildStatus, setBuildStatus] = useState({ status: 'idle', message: '' });
   const [buildSteps, setBuildSteps] = useState<BuildStep[]>([]);
@@ -52,12 +53,52 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
+  const triggerNextStep = () => {
+    if (executionQueue.length === 0) return;
+    
+    const nextTask = executionQueue[0];
+    setExecutionQueue(prev => prev.slice(1));
+    const stepNum = currentPlan.length - (executionQueue.length - 1);
+    
+    addToast(`Executing Phase ${stepNum}/${currentPlan.length}...`, 'info');
+
+    const internalCommand = `Phase ${stepNum}: ${nextTask}. 
+    Please implement the code for this phase and merge it with all previous work. 
+    Ensure no existing features are deleted. Return full file contents.`;
+    
+    handleSend(internalCommand, true);
+  };
+
   const handleSend = async (customPrompt?: string, isAuto: boolean = false) => {
     if (isGenerating && !isAuto) return;
+
+    const promptText = (customPrompt || input).trim();
+    
+    // Check for approval logic
+    if (waitingForApproval && !isAuto) {
+      const lowerInput = promptText.toLowerCase();
+      if (lowerInput === 'yes' || lowerInput === 'ha' || lowerInput === 'proceed' || lowerInput === 'y') {
+        setWaitingForApproval(false);
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: promptText, timestamp: Date.now() }]);
+        setInput('');
+        triggerNextStep();
+        return;
+      } else {
+        setWaitingForApproval(false);
+        setExecutionQueue([]);
+        setMessages(prev => [...prev, { 
+          id: Date.now().toString(), role: 'user', content: promptText, timestamp: Date.now() 
+        }, {
+          id: (Date.now() + 1).toString(), role: 'assistant', content: "ঠিক আছে, আমি অটোমেটিক প্ল্যান বন্ধ করে দিয়েছি। এখন আমি কি করব বলুন?", timestamp: Date.now() + 1
+        }]);
+        setInput('');
+        return;
+      }
+    }
+
     setIsGenerating(true);
 
     try {
-      const promptText = customPrompt || input;
       const currentImage = selectedImage ? { data: selectedImage.data, mimeType: selectedImage.mimeType } : undefined;
 
       if (!isAuto) {
@@ -77,79 +118,54 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
       if (res.thought) setLastThought(res.thought);
       
       if (res.files) {
-        const updatedFiles = { ...projectFiles };
-        let integrityProtected = false;
-
-        Object.entries(res.files).forEach(([path, newContent]) => {
-            const oldContent = projectFiles[path] || "";
-            if (isAuto && oldContent.length > 500 && (newContent as string).length < 100) {
-                console.warn(`[Integrity Guard] Prevented summary overwrite for: ${path}`);
-                integrityProtected = true;
-                return;
-            }
-            updatedFiles[path] = newContent as string;
-        });
-
-        if (!integrityProtected || !isAuto) {
-            setProjectFiles(updatedFiles);
-        }
+        setProjectFiles(prev => ({ ...prev, ...res.files }));
       }
 
+      let nextPlan = currentPlan;
       if (res.plan && res.plan.length > 0 && !isAuto) {
+        nextPlan = res.plan;
         setCurrentPlan(res.plan);
         setExecutionQueue(res.plan.slice(1));
-        addToast(`Architecting Solution: ${res.plan.length} Professional Phases mapped.`, 'success');
+        addToast(`Plan Created: ${res.plan.length} phases identified.`, 'success');
       }
 
-      const statusPrefix = isAuto ? `[PRO-ENGINEER] ` : ``;
+      const statusPrefix = isAuto ? `[Phase Complete] ` : ``;
+      let assistantResponse = statusPrefix + res.answer;
+
+      // Logic to ask user after a phase completes (if more phases exist)
+      const hasMoreSteps = (isAuto && executionQueue.length > 0) || (!isAuto && nextPlan.length > 1);
+      let isApproval = false;
+
+      if (hasMoreSteps) {
+        const nextStepName = isAuto ? executionQueue[0] : nextPlan[1];
+        assistantResponse += `\n\n**আমার বর্তমান কাজ শেষ। আমি কি পরবর্তী ধাপে যাব?**\n(পরবর্তী ধাপ: ${nextStepName})`;
+        setWaitingForApproval(true);
+        isApproval = true;
+      } else {
+        setWaitingForApproval(false);
+      }
+
       setMessages(prev => [...prev, { 
         id: (Date.now() + 1).toString(),
         role: 'assistant', 
-        content: statusPrefix + res.answer, 
+        content: assistantResponse, 
         plan: res.plan || (isAuto ? currentPlan : []),
-        timestamp: Date.now() 
+        timestamp: Date.now(),
+        isApproval
       }]);
 
       if (currentProjectId && user) {
-        await db.updateProject(user.id, currentProjectId, projectFiles, projectConfig);
+        await db.updateProject(user.id, currentProjectId, { ...projectFiles, ...res.files }, projectConfig);
       }
 
     } catch (err: any) {
       addToast(err.message, 'error');
       setExecutionQueue([]); 
+      setWaitingForApproval(false);
     } finally {
       setIsGenerating(false);
     }
   };
-
-  useEffect(() => {
-    if (!isGenerating && executionQueue.length > 0) {
-      const nextTask = executionQueue[0];
-      const timer = setTimeout(() => {
-        setExecutionQueue(prev => prev.slice(1));
-        
-        const totalSteps = currentPlan.length;
-        const stepNum = totalSteps - executionQueue.length + 1;
-        const isFinalStep = executionQueue.length === 1;
-        
-        addToast(`Phase ${stepNum}/${totalSteps}: ${nextTask.slice(0, 30)}...`, 'info');
-
-        const internalCommand = `[PROFESSIONAL AUTO-ENGINE ENGINE]
-        CONTEXT: Executing expanded application roadmap.
-        CURRENT PHASE: ${stepNum} of ${totalSteps}
-        TASK: ${nextTask}
-        
-        ${isFinalStep ? `CRITICAL CONSOLIDATION: This is the FINAL step. 
-        You MUST provide the FULL, PRODUCTION-READY, and COMPLETE code for 'app/index.html', 'app/main.js', and 'app/style.css'. 
-        Merge all logic and styles from previous phases into these files.` : 'INSTRUCTION: Implement full code for this specific phase. Do not skip any detail.'}
-        
-        Update necessary files. Return FULL file content only.`;
-        
-        handleSend(internalCommand, true);
-      }, 3000); 
-      return () => clearTimeout(timer);
-    }
-  }, [isGenerating, executionQueue, currentPlan, messages, projectFiles]);
 
   const handleImageSelect = (file: File) => {
     const reader = new FileReader();
@@ -179,16 +195,16 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
 
   const handleBuildAPK = async (onConfigRequired: () => void) => {
     if (!githubConfig.token || !githubConfig.owner) {
-      addToast("GitHub Infrastructure Sync Required.", "error");
+      addToast("Uplink Credentials Required.", "error");
       onConfigRequired();
       return;
     }
-    setBuildStatus({ status: 'pushing', message: 'Initiating Production Build...' });
-    setBuildSteps([{ name: 'Neural Logic Verification', status: 'completed', conclusion: 'success' }]);
+    setBuildStatus({ status: 'pushing', message: 'Syncing source code...' });
+    setBuildSteps([{ name: 'Initializing Build Cluster', status: 'completed', conclusion: 'success' }]);
   };
 
   const handleSecureDownload = () => {
-    addToast("Packaging application for delivery...", "info");
+    addToast("Generating secure download package...", "info");
   };
 
   const addFile = (path: string) => {
@@ -261,6 +277,7 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
     deleteFile,
     renameFile,
     openFile,
-    closeFile
+    closeFile,
+    waitingForApproval
   };
 };

@@ -14,11 +14,13 @@ interface ChatBoxProps {
   setSelectedImage: (img: any) => void;
   handleImageSelect: (file: File) => void;
   executionQueue: string[];
+  waitingForApproval?: boolean;
 }
 
 const ChatBox: React.FC<ChatBoxProps> = ({ 
   messages, input, setInput, isGenerating, handleSend, mobileTab,
-  selectedImage, setSelectedImage, handleImageSelect, executionQueue
+  selectedImage, setSelectedImage, handleImageSelect, executionQueue,
+  waitingForApproval
 }) => {
   return (
     <section className={`w-full lg:w-[520px] border-r border-white/5 flex flex-col bg-[#09090b] h-full relative ${mobileTab === 'preview' ? 'hidden lg:flex' : 'flex'}`}>
@@ -26,6 +28,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({
         messages={messages} 
         isGenerating={isGenerating} 
         handleSend={handleSend} 
+        waitingForApproval={waitingForApproval}
       />
 
       <ChatInput 

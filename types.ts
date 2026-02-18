@@ -70,6 +70,8 @@ export interface ChatMessage {
   answersSummary?: string;
   files?: Record<string, string>;
   thought?: string;
+  plan?: string[];
+  isApproval?: boolean;
 }
 
 export interface Package {
