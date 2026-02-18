@@ -19,6 +19,8 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
   const [isGenerating, setIsGenerating] = useState(false);
   const [executionQueue, setExecutionQueue] = useState<string[]>([]);
   const [projectFiles, setProjectFiles] = useState<Record<string, string>>({});
+  const projectFilesRef = useRef<Record<string, string>>({}); // Persistent ref to prevent state loss
+  
   const [projectConfig, setProjectConfig] = useState<ProjectConfig>({ appName: 'OneClickApp', packageName: 'com.oneclick.studio' });
   const [selectedFile, setSelectedFile] = useState('app/index.html');
   const [openTabs, setOpenTabs] = useState<string[]>(['app/index.html']);
@@ -44,6 +46,11 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
   const gemini = useRef(new GeminiService());
   const db = DatabaseService.getInstance();
 
+  // Sync ref with state
+  useEffect(() => {
+    projectFilesRef.current = projectFiles;
+  }, [projectFiles]);
+
   const addToast = useCallback((message: string, type: ToastMessage['type'] = 'info') => {
     const id = Date.now().toString();
     setToasts(prev => [...prev, { id, message, type }]);
@@ -53,43 +60,45 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
-  const triggerNextStep = () => {
-    if (executionQueue.length === 0) return;
+  const triggerNextStep = (remainingQueue: string[]) => {
+    if (remainingQueue.length === 0) return;
     
-    const nextTask = executionQueue[0];
-    setExecutionQueue(prev => prev.slice(1));
-    const stepNum = currentPlan.length - (executionQueue.length - 1);
+    const nextTask = remainingQueue[0];
+    const newQueue = remainingQueue.slice(1);
+    setExecutionQueue(newQueue);
     
-    addToast(`Executing Phase ${stepNum}/${currentPlan.length}...`, 'info');
+    const stepNum = currentPlan.length - newQueue.length;
+    addToast(`Phase ${stepNum}/${currentPlan.length}: ${nextTask}`, 'info');
 
-    const internalCommand = `Phase ${stepNum}: ${nextTask}. 
-    Please implement the code for this phase and merge it with all previous work. 
-    Ensure no existing features are deleted. Return full file contents.`;
+    const internalCommand = `EXECUTE PHASE ${stepNum}: ${nextTask}. 
+    MANDATORY: Look at the CURRENT FILES and add/update code for this feature. 
+    Return the COMPLETE content of any file you change. Do not omit existing logic.`;
     
-    handleSend(internalCommand, true);
+    handleSend(internalCommand, true, newQueue);
   };
 
-  const handleSend = async (customPrompt?: string, isAuto: boolean = false) => {
+  const handleSend = async (customPrompt?: string, isAuto: boolean = false, overrideQueue?: string[]) => {
     if (isGenerating && !isAuto) return;
 
     const promptText = (customPrompt || input).trim();
+    const activeQueue = overrideQueue !== undefined ? overrideQueue : executionQueue;
     
-    // Check for approval logic
+    // Approval handling logic for buttons
     if (waitingForApproval && !isAuto) {
       const lowerInput = promptText.toLowerCase();
       if (lowerInput === 'yes' || lowerInput === 'ha' || lowerInput === 'proceed' || lowerInput === 'y') {
         setWaitingForApproval(false);
-        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: promptText, timestamp: Date.now() }]);
+        setMessages(prev => [...prev, { id: Date.now().toString(), role: 'user', content: "Yes, proceed with next step.", timestamp: Date.now() }]);
         setInput('');
-        triggerNextStep();
+        triggerNextStep(activeQueue);
         return;
       } else {
         setWaitingForApproval(false);
         setExecutionQueue([]);
         setMessages(prev => [...prev, { 
-          id: Date.now().toString(), role: 'user', content: promptText, timestamp: Date.now() 
+          id: Date.now().toString(), role: 'user', content: "No, stop.", timestamp: Date.now() 
         }, {
-          id: (Date.now() + 1).toString(), role: 'assistant', content: "ঠিক আছে, আমি অটোমেটিক প্ল্যান বন্ধ করে দিয়েছি। এখন আমি কি করব বলুন?", timestamp: Date.now() + 1
+          id: (Date.now() + 1).toString(), role: 'assistant', content: "ঠিক আছে, আমি অটোমেটিক প্ল্যান বন্ধ করে দিয়েছি।", timestamp: Date.now() + 1
         }]);
         setInput('');
         return;
@@ -113,31 +122,32 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
         setSelectedImage(null);
       }
 
-      const res = await gemini.current.generateWebsite(promptText, projectFiles, messages, currentImage, projectConfig);
+      // Always pass the LATEST files from Ref
+      const res = await gemini.current.generateWebsite(promptText, projectFilesRef.current, messages, currentImage, projectConfig);
       
       if (res.thought) setLastThought(res.thought);
       
-      if (res.files) {
-        setProjectFiles(prev => ({ ...prev, ...res.files }));
+      let updatedFiles = { ...projectFilesRef.current };
+      if (res.files && Object.keys(res.files).length > 0) {
+        updatedFiles = { ...updatedFiles, ...res.files };
+        setProjectFiles(updatedFiles);
+        projectFilesRef.current = updatedFiles; // Immediate sync
       }
 
       let nextPlan = currentPlan;
       if (res.plan && res.plan.length > 0 && !isAuto) {
         nextPlan = res.plan;
         setCurrentPlan(res.plan);
-        setExecutionQueue(res.plan.slice(1));
-        addToast(`Plan Created: ${res.plan.length} phases identified.`, 'success');
+        const initialQueue = res.plan.slice(1);
+        setExecutionQueue(initialQueue);
       }
 
-      const statusPrefix = isAuto ? `[Phase Complete] ` : ``;
-      let assistantResponse = statusPrefix + res.answer;
-
-      // Logic to ask user after a phase completes (if more phases exist)
-      const hasMoreSteps = (isAuto && executionQueue.length > 0) || (!isAuto && nextPlan.length > 1);
+      const hasMoreSteps = (isAuto && activeQueue.length > 0) || (!isAuto && nextPlan.length > 1);
       let isApproval = false;
+      let assistantResponse = res.answer;
 
       if (hasMoreSteps) {
-        const nextStepName = isAuto ? executionQueue[0] : nextPlan[1];
+        const nextStepName = isAuto ? activeQueue[0] : nextPlan[1];
         assistantResponse += `\n\n**আমার বর্তমান কাজ শেষ। আমি কি পরবর্তী ধাপে যাব?**\n(পরবর্তী ধাপ: ${nextStepName})`;
         setWaitingForApproval(true);
         isApproval = true;
@@ -155,7 +165,7 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
       }]);
 
       if (currentProjectId && user) {
-        await db.updateProject(user.id, currentProjectId, { ...projectFiles, ...res.files }, projectConfig);
+        await db.updateProject(user.id, currentProjectId, updatedFiles, projectConfig);
       }
 
     } catch (err: any) {
@@ -184,11 +194,13 @@ export const useAppLogic = (user: UserType | null, setUser: (u: UserType | null)
     setCurrentProjectId(project.id);
     localStorage.setItem('active_project_id', project.id);
     setProjectFiles(project.files);
+    projectFilesRef.current = project.files;
     if (project.config) setProjectConfig(project.config);
   };
 
   const handleRollback = async (files: Record<string, string>, message: string) => {
     setProjectFiles(files);
+    projectFilesRef.current = files;
     addToast(`Restored to: ${message}`, 'success');
     setPreviewOverride(null);
   };
